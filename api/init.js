@@ -6,15 +6,11 @@ module.exports = async (req, res) => {
   let raw = '';
   for await (const chunk of req) raw += chunk;
 
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    console.error('JSON parse fail:', raw);
-    return res.status(400).json({ error: 'Bad JSON', raw });
-  }
+  let data;
+  try { data = JSON.parse(raw); }
+  catch { return res.status(400).end(); }
 
-  const { userid, username } = parsed;
+  const { userid, username } = data || {};
   if (!userid || !username) return res.status(400).end();
 
   const exp = Date.now() + 20000;
@@ -22,5 +18,5 @@ module.exports = async (req, res) => {
   const sig = crypto.createHmac('sha256', process.env.HWID_SECRET).update(payload).digest('hex');
 
   res.setHeader('Content-Type', 'application/json');
-  res.status(200).end(JSON.stringify({ token: `${payload}:${sig}` }));
+  res.end(JSON.stringify({ token: `${payload}:${sig}` }));
 };
