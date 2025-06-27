@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const crypto = require('crypto');
+const { buffer } = require('micro');
 
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -7,7 +8,9 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { name, token } = req.body || {};
+  const rawBody = await buffer(req);
+  const { name, token } = JSON.parse(rawBody.toString());
+
   if (!name || !token) return res.status(400).end();
 
   const [uid, usr, exp, sig] = token.split(':');
@@ -23,7 +26,7 @@ module.exports = async (req, res) => {
   if (!scriptRes.ok) return res.status(404).end();
   const script = await scriptRes.text();
 
-  const redisResponse = await fetch(`${UPSTASH_URL}`, {
+  const redisResponse = await fetch(UPSTASH_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${UPSTASH_TOKEN}`,
@@ -38,4 +41,10 @@ module.exports = async (req, res) => {
 
   res.setHeader('Content-Type', 'text/plain');
   res.send(script);
+};
+
+export const config = {
+  api: {
+    bodyParser: false
+  }
 };
