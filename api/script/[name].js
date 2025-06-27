@@ -2,9 +2,6 @@ const fetch = require('node-fetch');
 const crypto = require('crypto');
 const { buffer } = require('micro');
 
-const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
-const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -25,19 +22,6 @@ module.exports = async (req, res) => {
   const scriptRes = await fetch(`https://makalback.vercel.app/scripts/${name}.lua`);
   if (!scriptRes.ok) return res.status(404).end();
   const script = await scriptRes.text();
-
-  const redisResponse = await fetch(UPSTASH_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      command: ['INCR', `executions:${name}`]
-    })
-  });
-
-  if (!redisResponse.ok) return res.status(502).end();
 
   res.setHeader('Content-Type', 'text/plain');
   res.send(script);
