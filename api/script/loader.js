@@ -17,7 +17,7 @@ local function makal_request(data)
 end
 
 local I = makal_request({
-  Url = "https://makalhub.vercel.app/api/init?userid=" .. P.UserId .. "&username=" .. P.Name,
+  Url = "https://makalback.vercel.app/api/init?userid=" .. P.UserId .. "&username=" .. P.Name,
   Method = "GET"
 })
 assert(I and I.Body, "Init failed")
@@ -32,7 +32,7 @@ local N = M[game.PlaceId]
 assert(N, "Unsupported game")
 
 local S = makal_request({
-  Url = "https://makalhub.vercel.app/api/script/" .. N,
+  Url = "https://makalback.vercel.app/api/script/" .. N,
   Method = "POST",
   Headers = { ["Content-Type"] = "application/json" },
   Body = H:JSONEncode({ name = N, token = T })
