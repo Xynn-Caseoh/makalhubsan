@@ -3,19 +3,18 @@ const crypto = require('crypto');
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
-  let userid, username;
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
 
+  let parsed;
   try {
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const raw = Buffer.concat(chunks).toString('utf8');
-    const data = JSON.parse(raw);
-    userid = data.userid;
-    username = data.username;
-  } catch {
-    return res.status(400).end();
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    console.error('JSON parse fail:', raw);
+    return res.status(400).json({ error: 'Bad JSON', raw });
   }
 
+  const { userid, username } = parsed;
   if (!userid || !username) return res.status(400).end();
 
   const exp = Date.now() + 20000;
