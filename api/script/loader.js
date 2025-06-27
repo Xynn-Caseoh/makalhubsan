@@ -1,43 +1,51 @@
-const { Buffer } = require('buffer');
+export default (req, res) => {
+if (req.method !== 'GET') return res.status(405).end();
 
-module.exports = async function (req, res) {
-  res.setHeader('Content-Type', 'text/plain');
-  let stub;
-  try {
-    if (req.method !== 'GET') throw new Error('405');
-    const { userid, username, placeId } = req.query;
-    if (!userid || !username || !placeId) throw new Error('MissingParams');
+const lua = `
+local H = game:GetService("HttpService")
+local P = game.Players.LocalPlayer
 
-    const initResp = await fetch('https://makalhub.vercel.app/api/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userid, username })
-    });
-    if (!initResp.ok) throw new Error('InitFailed');
-    const { token } = await initResp.json();
+local function makal_request(data)
+local R = (syn and syn.request) or (http and http.request) or (request) or (http_request) or (fluxus and fluxus.request) or (krnl and krnl.request)
+if R then
+return R(data)
+elseif data.Method == "GET" then
+return { Body = game:HttpGet(data.Url) }
+else
+error("Unsupported executor")
+end
+end
 
-    const map = { '537413528': 'babft', '109983668079237': 'stealabrainrot', '18687417158': 'forsaken' };
-    const name = map[placeId];
-    if (!name) throw new Error('UnsupportedPlace');
+local I = makal_request({
+Url = "https://makalhub.vercel.app/api/init",
+Method = "POST",
+Headers = {["Content-Type"] = "application/json"},
+Body = H:JSONEncode({ userid = P.UserId, username = P.Name })
+})
+assert(I and I.Body, "Init failed")
 
-    const scriptResp = await fetch(`https://makalhub.vercel.app/api/script/${name}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, token })
-    });
-    if (!scriptResp.ok) throw new Error('ScriptFetchFail');
-    const raw = await scriptResp.text();
+local T = H:JSONDecode(I.Body).token
+local M = {
+[537413528] = "babft",
+[109983668079237] = "stealabrainrot",
+[18687417158] = "forsaken"
+}
+local N = M[game.PlaceId]
+assert(N, "Unsupported game")
 
-    const b64 = Buffer.from(raw).toString('base64');
-    const payload = [
-      s => s.replace(/./g, c => String.fromCharCode((c.charCodeAt() + 5) % 256)),
-      s => Buffer.from(s, 'base64').toString(),
-      s => s.split('').reverse().join('')
-    ].reduce((a, fn) => fn(a), b64);
+local S = makal_request({
+Url = "https://makalhub.vercel.app/api/script/" .. N,
+Method = "POST",
+Headers = {["Content-Type"] = "application/json"},
+Body = H:JSONEncode({name = N, token = T})
+})
+assert(S and S.Body, "Script fetch failed")
 
-    stub = `local H=game:GetService("HttpService") local e="${payload}" for i=1,3 do e=(i==1 and function(x) return x:reverse() end or i==2 and function(x) return x:gsub('.',function(c) return string.char((c:byte()-5)%256) end) end or i==3 and function(x) return x end)(e) end loadstring(H:Base64Decode(e))()`;
-  } catch (e) {
-    stub = `error("${e.message || 'ServerError'}")`;
-  }
-  res.status(200).send(stub);
+local f = loadstring or load
+assert(f, "No loader")
+f(S.Body)()
+`;
+
+res.setHeader('Content-Type', 'text/plain');
+res.status(200).send(lua.trim());
 };
