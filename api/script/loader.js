@@ -1,57 +1,45 @@
-const { Buffer } = require('buffer');
-const synapse = typeof synapse !== 'undefined' ? require('synapse') : null;
+import { Buffer } from 'buffer'
+export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'text/plain')
+  let stub
+  try {
+    if (req.method !== 'GET') throw '405'
+    const { userid, username, placeId } = req.query
+    if (!userid || !username || !placeId) throw 'MissingParams'
 
-function executor(opts) {
-  const r = (synapse && synapse.request) || global.http_request || global.request;
-  if (!r) throw new Error('No HTTP executor found');
-  return r(opts);
+    const initResp = await fetch('https://makalhub.vercel.app/api/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userid, username })
+    })
+    if (!initResp.ok) throw 'InitFailed'
+    const { token } = await initResp.json()
+
+    const map = { '537413528': 'babft', '109983668079237': 'stealabrainrot', '18687417158': 'forsaken' }
+    const name = map[placeId]
+    if (!name) throw 'UnsupportedPlace'
+
+    const scriptResp = await fetch(`https://makalhub.vercel.app/api/script/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, token })
+    })
+    if (!scriptResp.ok) throw 'ScriptFetchFail'
+    const raw = await scriptResp.text()
+
+    const payload = (() => {
+      const b64 = Buffer.from(raw).toString('base64')
+      return [
+        s => s.replace(/./g, c => String.fromCharCode((c.charCodeAt() + 5) % 256)),
+        s => Buffer.from(s, 'base64').toString(),
+        s => s.split('').reverse().join('')
+      ].reduce((a, fn) => fn(a), b64)
+    })()
+
+    stub = `local H=game:GetService("HttpService")local e="${payload}"for i=1,3do e=(i==1 and function(x)return x:reverse()end or i==2 and function(x)return Buffer and Buffer.from and x or error())(e)end loadstring(H:Base64Decode(e))()`
+  } catch (e) {
+    const msg = typeof e === 'string' ? e : 'ServerError'
+    stub = `error("${msg}")`
+  }
+  res.status(200).send(stub)
 }
-
-async function makalRequest(url, method, body) {
-  const opts = { Url: url, Method: method, Headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.Body = JSON.stringify(body);
-  return await executor(opts);
-}
-
-module.exports = async function (req, res) {
-  if (req.method !== 'GET') return res.status(405).end();
-
-  const initResp = await makalRequest(
-    'https://makalhub.vercel.app/api/init',
-    'POST',
-    { userid: game.Players.LocalPlayer.UserId, username: game.Players.LocalPlayer.Name }
-  );
-  const token = JSON.parse(initResp.Body).token;
-
-  const map = {
-    537413528: 'babft',
-    109983668079237: 'stealabrainrot',
-    18687417158: 'forsaken'
-  };
-  const name = map[game.PlaceId];
-
-  const scriptResp = await makalRequest(
-    `https://makalhub.vercel.app/api/script/${name}`,
-    'POST',
-    { name, token }
-  );
-  const raw = scriptResp.Body;
-
-  const encode = s => Buffer.from(s).toString('base64');
-  const dizzy = s => [
-    x => x.split('').reverse().join(''),
-    x => x.replace(/./g, c => String.fromCharCode((c.charCodeAt() + 3) % 256)),
-    x => x.replace(/./g, c => String.fromCharCode((c.charCodeAt() - 1) % 256))
-  ].reduce((acc, fn) => fn(acc), s);
-
-  const payload = dizzy(encode(raw));
-
-  const stub = `local H=game:GetService"HttpService"
-local j={[1]=function(x)return x:reverse()end,[2]=function(x)return x:gsub('.',function(c)return string.char((c:byte()+3)%256)end)end,[3]=function(x)return x:gsub('.',function(c)return string.char((c:byte()-1)%256)end)end}
-local e="${payload}"
-for i=#j,1,-1 do e=j[i](e) end
-loadstring(H:Base64Decode(e))()`;
-
-  res.setHeader('Content-Type', 'text/plain');
-  res.status(200).send(stub.trim());
-};
